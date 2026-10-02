@@ -14,6 +14,8 @@ from .data_processing import normalize_id
 from .freegenes_service import BBF_PATTERN, FreeGenesService
 from .genbank_service import InvalidGenBank, parse_genbank
 
+PART_INDEX_VERSION = "reclone-inventory-v4"
+
 
 def clean(value):
     if isinstance(value, dict):
@@ -36,8 +38,18 @@ def _unique(values):
     return list(dict.fromkeys(v for v in values if v not in (None, "")))
 
 
+def part_display_name(part, fallback=""):
+    """Label current and legacy records without requiring a derived cache field."""
+    if part.get("display_name"):
+        return str(part["display_name"])
+    names = _unique(record.get("fields", {}).get("Name")
+                    for record in part.get("source_records", []) if record.get("source") == "Reclone")
+    return " / ".join(str(name) for name in names) or str(part.get("name") or part.get("part_key") or fallback)
+
+
 class PartService:
     def __init__(self, reclone, freegenes: FreeGenesService):
+        self.index_version = PART_INDEX_VERSION
         self.reclone = reclone
         self.freegenes = freegenes
         self.parts = {}
@@ -200,7 +212,7 @@ class PartService:
                 continue
             rows.append({"Part Key": p["part_key"], "BBF ID": "; ".join(p["bbf_ids"]),
                          "ODC ID": "; ".join(a for a in p["aliases"] if a.startswith("ODC_")),
-                         "Name": p["display_name"], "Collection": "; ".join(p["collections"]),
+                         "Name": part_display_name(p), "Collection": "; ".join(p["collections"]),
                          "Sources": "; ".join(p["sources"]), "Locations": len(locations),
                          "Well_Location": "; ".join(_unique(f"{loc['provider']}: {loc.get('plate_name') or 'unknown plate'} / {loc.get('well') or 'unknown well'}" for loc in locations)),
                          "Bacterial_Resistance": "; ".join(_unique(loc.get("resistance") for loc in locations)),

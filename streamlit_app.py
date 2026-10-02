@@ -18,7 +18,7 @@ import streamlit as st
 from services import BlastService, DNACollectionDataService
 from services.data_processing import normalize_id
 from services.freegenes_service import FreeGenesService
-from services.part_service import PartService
+from services.part_service import PART_INDEX_VERSION, PartService
 from ui.part_details import open_details, part_details_dialog
 from ui.results_table import render_results_table
 from ui.debug import show_debug_page
@@ -113,9 +113,13 @@ def load_freegenes_service(revision: str) -> FreeGenesService:
     return FreeGenesService(APP_BASE)
 
 
-@st.cache_resource(max_entries=3)
-def load_part_service(reclone_revision: str, freegenes_revision: str) -> PartService:
-    """Build the v3 inventory from Reclone master-list and platemap records."""
+def valid_part_service(service) -> bool:
+    return getattr(service, "index_version", None) == PART_INDEX_VERSION
+
+
+@st.cache_resource(max_entries=3, validate=valid_part_service)
+def load_part_service(reclone_revision: str, freegenes_revision: str, index_version: str) -> PartService:
+    """Hash the explicit schema version and reject incompatible cached instances."""
     return PartService(load_data_service(reclone_revision), load_freegenes_service(freegenes_revision))
 
 
@@ -255,7 +259,7 @@ def show_home_page(service: DNACollectionDataService, parts: PartService) -> Non
 
 def show_search_page(service, freegenes, reclone_revision) -> None:
     st.markdown("## Search & Browse Collections")
-    parts = load_part_service(reclone_revision, manifest_revision(freegenes.directory / "manifest.json"))
+    parts = load_part_service(reclone_revision, manifest_revision(freegenes.directory / "manifest.json"), PART_INDEX_VERSION)
     st.caption("Search Reclone parts with matching FreeGenes information. Submit an empty query to browse the Reclone inventory. Click anywhere on a row to open details.")
     with st.form("part_search"):
         c1, c2 = st.columns([2, 1])
@@ -272,7 +276,7 @@ def show_search_page(service, freegenes, reclone_revision) -> None:
         with st.spinner("Checking FreeGenes sources…"):
             refresh = freegenes.ensure_fresh()
         fg_revision = manifest_revision(freegenes.directory / "manifest.json")
-        parts = load_part_service(reclone_revision, fg_revision)
+        parts = load_part_service(reclone_revision, fg_revision, PART_INDEX_VERSION)
         filters = {k: v.strip() for k, v in {"resistance": resistance, "strain": strain, "well_pattern": well}.items() if v.strip()}
         if provider != "All providers":
             filters["provider"] = provider
@@ -285,7 +289,7 @@ def show_search_page(service, freegenes, reclone_revision) -> None:
     last = st.session_state.get("submitted_search")
     if not last:
         return
-    source_revision = "reclone-inventory-v3:" + reclone_revision + parts.freegenes.revision
+    source_revision = PART_INDEX_VERSION + ":" + reclone_revision + parts.freegenes.revision
     if "search_results" not in st.session_state or st.session_state.get("search_revision") != source_revision:
         st.session_state["search_results"] = parts.search_parts(**last)
         st.session_state["search_revision"] = source_revision
@@ -333,7 +337,8 @@ def show_search_page(service, freegenes, reclone_revision) -> None:
     display = page if show_all else page[["BBF ID", "ODC ID", "Name", "Collection", "Sources", "Locations", "Source Conflicts"]]
     render_results_table(display, keys, table_key)
     c1, c2 = st.columns([3, 1])
-    chosen = c1.selectbox("Part on this page", keys, format_func=lambda k: k + " — " + parts.parts[k]["display_name"],
+    page_names = page.set_index("Part Key")["Name"].to_dict()
+    chosen = c1.selectbox("Part on this page", keys, format_func=lambda k: k + " — " + str(page_names.get(k) or k),
                           key=f"part_choice_{page_number}_{page_size}")
     if c2.button("View details", key="view_details"):
         open_details(chosen)
@@ -534,14 +539,14 @@ def main() -> None:
 
     page = st.session_state.current_page
     if page == "Home":
-        show_home_page(service, load_part_service(reclone_revision, manifest_revision(freegenes.directory / "manifest.json")))
+        show_home_page(service, load_part_service(reclone_revision, manifest_revision(freegenes.directory / "manifest.json"), PART_INDEX_VERSION))
     elif page == "Search & Browse":
         show_search_page(service, freegenes, reclone_revision)
     elif page == "BLAST Search":
         show_blast_page(service)
     elif page == "Interactive Builder":
         builder_revision = manifest_revision(APP_BASE / "data" / "freegenes" / "manifest.json")
-        show_builder_page(load_part_service(reclone_revision, builder_revision),
+        show_builder_page(load_part_service(reclone_revision, builder_revision, PART_INDEX_VERSION),
                           revision=f"{reclone_revision}:{builder_revision}")
     elif page == "Debug":
         show_debug_page(service, freegenes)

@@ -11,6 +11,7 @@ from services.builder_input_service import input_record, with_topology
 from services.fragment_service import analysis_report, generate_fragment
 from services.genbank_service import feature_table
 from services.nomenclature_service import load_scheme
+from services.part_service import part_display_name
 from services.restriction_service import analyze_restriction, candidate_between
 from .sequence_viewer import render_sequence_viewer
 
@@ -43,7 +44,7 @@ def show_builder_page(parts, revision=""):
     raw, part_key, selected_bbf = b"", None, None
     if mode == "Database part":
         part_key = st.selectbox("Reclone part", [None, *sorted(parts.parts)],
-            format_func=lambda key: "Choose a part" if key is None else f"{key} · {parts.parts[key]['display_name']}",
+            format_func=lambda key: "Choose a part" if key is None else f"{key} · {part_display_name(parts.parts.get(key, {}), key)}",
             key="builder_part")
         if part_key and len(parts.parts[part_key]["bbf_ids"]) > 1:
             st.warning("Multiple sequence identities exist. Choose an exact BBF ID.")

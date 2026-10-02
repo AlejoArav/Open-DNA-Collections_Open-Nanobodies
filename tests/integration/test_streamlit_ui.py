@@ -90,7 +90,73 @@ def test_search_index_upgrade_rebuilds_saved_results(app):
     assert not app.exception
     assert len(app.session_state["search_results"]) == 2
     assert app.session_state["search_results"].iloc[0]["Name"] == "Local name"
-    assert app.session_state["search_revision"].startswith("reclone-inventory-v3:")
+    from services.part_service import PART_INDEX_VERSION
+    assert app.session_state["search_revision"].startswith(PART_INDEX_VERSION + ":")
+
+
+def test_legacy_cached_records_work_in_search_details_and_builder(app, monkeypatch):
+    import streamlit as st
+    from services.part_service import PartService
+
+    captured = []
+    original_init = PartService.__init__
+    def capture(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        captured.append(self)
+    monkeypatch.setattr(PartService, "__init__", capture)
+    st.cache_resource.clear()
+    app.run()
+    button(app, "Search & Browse").click().run()
+    button(app, "Search").click().run()
+    assert not app.exception
+    for part in captured[-1].parts.values():
+        part.pop("display_name")
+    # Keep the already-submitted results, exactly as in a surviving Cloud session.
+    app.run()
+    assert not app.exception
+    choice = next(s for s in app.selectbox if s.label == "Part on this page")
+    assert "Local name" in choice.format_func(choice.value)
+    button(app, "View details").click().run()
+    assert not app.exception
+    assert any(h.value == "Local name" for h in app.subheader)
+    button(app, "Close details").click().run()
+    button(app, "Interactive Builder").click().run()
+    assert not app.exception
+    choice = next(s for s in app.selectbox if s.label == "Reclone part")
+    assert "Local name" in choice.format_func("BBF10K_000001")
+    button(app, "Search & Browse").click().run()
+    button(app, "Search").click().run()
+    assert not app.exception
+    assert app.session_state["search_results"].iloc[0]["Name"] == "Local name"
+
+
+@pytest.mark.parametrize("upgrade", ["schema_argument", "legacy_instance"])
+def test_part_resource_rebuilds_on_schema_upgrade_without_changed_manifests(app, monkeypatch, upgrade):
+    import streamlit as st
+    import services.part_service as module
+
+    captured = []
+    original_init = module.PartService.__init__
+    def capture(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        captured.append(self)
+    monkeypatch.setattr(module.PartService, "__init__", capture)
+    st.cache_resource.clear()
+    app.run()
+    button(app, "Search & Browse").click().run()
+    button(app, "Search").click().run()
+    old = captured[-1]
+    assert len(captured) == 1
+    if upgrade == "schema_argument":
+        monkeypatch.setattr(module, "PART_INDEX_VERSION", "test-next-inventory-schema")
+    else:
+        del old.index_version
+    app.run()
+    assert not app.exception
+    assert len(captured) == 2
+    assert captured[-1] is not old
+    assert captured[-1].index_version == module.PART_INDEX_VERSION
+    assert app.session_state["search_revision"].startswith(module.PART_INDEX_VERSION + ":")
 
 
 def test_stale_page_and_blast_page(app):

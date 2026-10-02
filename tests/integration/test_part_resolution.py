@@ -8,7 +8,7 @@ import requests
 
 from conftest import Client, make_freegenes, make_reclone, metadata_record
 from services.genbank_service import export_part
-from services.part_service import PartService
+from services.part_service import PartService, part_display_name
 
 
 def test_search_restricts_inventory_but_enriches_matching_aliases(tmp_path):
@@ -80,6 +80,15 @@ def test_matching_plate_names_are_search_aliases(tmp_path):
         {"ODC ID": "ODC_0001", "BBF ID": "BBF10K_000001", "Name": "Well annotation alias", "Well Location": "A1"}])
     parts = PartService(local, make_freegenes(tmp_path))
     assert parts.search_parts("Well annotation alias").iloc[0]["Name"] == "Local name"
+
+
+def test_legacy_label_preserves_reclone_names_and_handles_missing_fields():
+    legacy = {"name": "THEAQpolA", "source_records": [
+        {"source": "FreeGenes backend", "fields": {"gene_name_short": "THEAQpolA"}},
+        {"source": "Reclone", "fields": {"Name": "Taq DNA Polymerase"}}]}
+    assert part_display_name(legacy) == "Taq DNA Polymerase"
+    assert part_display_name({"name": "Legacy name"}) == "Legacy name"
+    assert part_display_name({}, "BBF10K_003257") == "BBF10K_003257"
 
 
 def test_backend_precedence_preserves_conflicting_original_rows(tmp_path):

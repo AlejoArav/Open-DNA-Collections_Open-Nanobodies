@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from services.genbank_service import export_part, feature_table
+from services.part_service import part_display_name
 from .sequence_viewer import render_sequence_viewer
 
 
@@ -23,7 +24,7 @@ def render_details(details, location_status):
     gb = details.get("genbank")
     summary, downloads = st.columns([3, 1], gap="large")
     with summary:
-        st.subheader(details.get("display_name", details["name"]))
+        st.subheader(part_display_name(details))
         st.text("Identifiers: " + ", ".join(details["aliases"]))
         st.text("Collections: " + "; ".join(details["collections"]))
         if gb:
