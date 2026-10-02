@@ -20,16 +20,38 @@ def open_details(key):
 
 
 def render_details(details, location_status):
-    st.subheader(details["name"])
-    st.text("Identifiers: " + ", ".join(details["aliases"]))
-    st.text("Collections: " + "; ".join(details["collections"]))
     gb = details.get("genbank")
+    summary, downloads = st.columns([3, 1], gap="large")
+    with summary:
+        st.subheader(details["name"])
+        st.text("Identifiers: " + ", ".join(details["aliases"]))
+        st.text("Collections: " + "; ".join(details["collections"]))
+        if gb:
+            st.text(gb["description"])
+    with downloads:
+        st.markdown("### Downloads")
+        exports = export_part(details)
+        labels = {"gb": "Download GenBank", "csv": "Download CSV", "fasta": "Download FASTA",
+                  "txt": "Download TXT", "features.csv": "Download feature CSV"}
+        for extension, payload in exports.items():
+            st.download_button(labels[extension], payload, f"{details['part_key']}.{extension}",
+                               "text/csv" if extension.endswith("csv") else "text/plain",
+                               on_click="ignore", key=f"part_download_{extension}", width="stretch")
     hidden_warnings = set((gb or {}).get("parse_warnings", []))
     for warning in details["warnings"]:
         if warning not in hidden_warnings and not warning.startswith((
                 "LOCUS topology is circular but", "Some source metadata differs.",
                 "Duplicate FreeGenes records disagree;")):
             st.warning(warning)
+    if gb:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Length", f"{gb['length']} bp")
+        c2.metric("GC Content", f"{gb['gc_content']:.1f}%")
+        c3.metric("Features", len(gb["features"]))
+        c4.metric("Topology", gb["topology"])
+        render_sequence_viewer(gb, key=f"details_viewer_{details['part_key']}")
+    else:
+        st.info("No usable sequence: " + details["sequence_status"] + ". Metadata and location exports are available.")
     if details["locations"]:
         st.markdown("### Physical locations")
         locations = pd.DataFrame(details["locations"])
@@ -44,32 +66,12 @@ def render_details(details, location_status):
                 for k, v in details["metadata"].items()]
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
     if gb:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Length", f"{gb['length']} bp")
-        c2.metric("GC Content", f"{gb['gc_content']:.1f}%")
-        c3.metric("Features", len(gb["features"]))
-        c4.metric("Topology", gb["topology"])
-        st.text(gb["description"])
-        render_sequence_viewer(gb, key=f"details_viewer_{details['part_key']}")
-        st.markdown("### DNA sequence (5′ to 3′)")
-        # Plain code/text, never interpolated untrusted HTML.
-        st.code("\n".join(gb["sequence"][i:i+80] for i in range(0, gb["length"], 80)), language=None)
         st.markdown("### GenBank feature list")
         st.caption("Displayed base ranges are 1-based and inclusive. Internal locations retain 0-based, half-open spans, strand, and compound operators.")
         if gb["features"]:
             st.dataframe(feature_table(gb["features"]), hide_index=True, width="stretch")
         else:
             st.info("This GenBank record contains no annotated features.")
-    else:
-        st.info("No usable sequence: " + details["sequence_status"] + ". Metadata and location exports are available.")
-    st.markdown("### Downloads")
-    exports = export_part(details)
-    labels = {"gb": "Download GenBank", "csv": "Download CSV", "fasta": "Download FASTA",
-              "txt": "Download TXT", "features.csv": "Download feature CSV"}
-    for column, extension in zip(st.columns(len(exports)), exports):
-        column.download_button(labels[extension], exports[extension], f"{details['part_key']}.{extension}",
-                               "text/csv" if extension.endswith("csv") else "text/plain",
-                               on_click="ignore", key=f"part_download_{extension}")
 
 
 @st.dialog("Part details", width="large", on_dismiss=dismiss_details)

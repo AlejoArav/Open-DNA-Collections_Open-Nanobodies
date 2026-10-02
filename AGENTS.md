@@ -21,6 +21,7 @@
 - The bundled component must retry readiness until the first render acknowledgement; a one-shot ready message can be dropped before host registration. Keep the frontend regression covering this race.
 - Use the bundled whole-row clickable table in `ui/results_table/`; do not revert to checkbox-only selection. Preserve stable IDs through sorting/paging and support keyboard activation.
 - Keep Part Details free of metadata retrieval timestamps, parser/topology notices, missing-location notices, and source/provenance sections. Preserve diagnostic data and source validation internally and in exports; keep actionable unavailable/ambiguous sequence states visible.
+- Part Details places downloads beside the name/description and the interactive viewer below the summary/metrics, before metadata/location tables. Omit the separate raw DNA code block; preserve full DNA in the viewer and exports.
 
 ## Data correctness
 

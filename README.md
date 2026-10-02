@@ -21,7 +21,7 @@ The local implementation provides:
 
 - **Home**: collection overview.
 - **Search & Browse**: Reclone inventory search enriched with matching FreeGenes records. FreeGenes-only parts are excluded. Submit an empty query to browse Reclone parts. Click any cell in a row to open details; column headers sort the displayed page. Keyboard users can focus a row and press Enter or Space.
-- **Part details dialog**: metadata, source-specific physical locations, an interactive sequence viewer, complete GenBank features and GenBank/CSV/FASTA/TXT downloads. Retrieval/parser notices and source/provenance sections are hidden in this dialog; provenance remains in exports. A separate feature CSV is also available.
+- **Part details dialog**: downloads beside the name/description, followed by sequence metrics, the interactive viewer, source-specific physical locations, metadata and complete GenBank features. The separate raw DNA block is omitted; DNA remains available in the viewer and GenBank/CSV/FASTA/TXT downloads. Retrieval/parser notices and source/provenance sections are hidden in this dialog; provenance remains in exports. A separate feature CSV is also available.
 - **BLAST Search**: the existing local sequence index and optional NCBI fallback.
 - **Interactive Builder**: Analyze / Generate Part from a Reclone record, pasted DNA/FASTA, or an uploaded GenBank/FASTA/DNA file. Analyze BsaI/SapI cuts, select a digestion fragment explicitly, and export its sequence, physical ends, and retained features.
 - **Debug**: freshness, diagnostics, manifests, FreeGenes refresh, dataset exports, and Reclone platemaps.
