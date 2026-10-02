@@ -81,7 +81,7 @@ def feature_table(features: list[dict]) -> pd.DataFrame:
 
 
 def export_part(details: dict) -> dict[str, bytes]:
-    """CSV/TXT work even when no usable sequence exists; never expose local paths."""
+    """CSV/TXT work even without usable DNA; never expose absolute server paths."""
     gb = details.get("genbank") or {}
     summary = {"part_id": details["part_key"], "aliases": details["aliases"],
                "name": details["name"], "collections": details["collections"],

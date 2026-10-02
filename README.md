@@ -28,6 +28,8 @@ The local implementation provides:
 
 Analytics and the standalone Part Details/Data Management routes were removed. The deployed URL above may still run the previous version; these changes have not been deployed. Full multi-part plasmid assembly remains Goal 3 in [the implementation plan](docs/IMPLEMENTATION_PLAN.md).
 
+GenBank resolution prefers a current valid FreeGenes file. If it is missing, unreachable, invalid or removed from that index, the app searches the local Open DNA collection by exact BBF/ODC IDs, validates the file and labels it as a local fallback. Local files also precede an older FreeGenes cache during outages. Conflicting local files are not chosen automatically. The viewer and all sequence exports share the selected file; export provenance records its hash, relative source paths and the FreeGenes failure status.
+
 ### Viewing and generating parts
 
 Open a search result to explore its annotated circular or linear map. The viewer always uses a white background and dark text, regardless of the app theme. Click a feature to select its sequence, use the plus/minus controls to zoom, rotate circular maps with the arrow controls, and scroll the Sequence Map. Assets for MIT-licensed TeselaGen OVE 0.8.42 are bundled locally with a version/hash manifest. The viewer uses the same resolved GenBank as downloads and preserves source DNA. Unknown topology uses a linear display. Exact source feature locations remain in the full feature table: OVE selects joined features by their bounding endpoints, including gaps, and its size column describes that selection span.

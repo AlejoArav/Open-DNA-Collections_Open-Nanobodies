@@ -14,7 +14,7 @@ from .data_processing import normalize_id
 from .freegenes_service import BBF_PATTERN, FreeGenesService
 from .genbank_service import InvalidGenBank, parse_genbank
 
-PART_INDEX_VERSION = "reclone-inventory-v4"
+PART_INDEX_VERSION = "reclone-inventory-v5"
 
 
 def clean(value):
@@ -236,18 +236,24 @@ class PartService:
         for alias in allowed:
             if not identifier(alias):
                 continue
-            for pattern in (f"genbank/{alias}.gb", f"*/Plasmids_Genbank/{alias}.gb", f"*/genbank_seq/{alias}.gb"):
-                candidates.extend(self.reclone.base_path.glob(pattern))
-        parsed, failures = {}, []
+            for extension in ("gb", "gbk", "genbank"):
+                for folder in ("genbank", "*/Plasmids_Genbank", "*/genbank_seq"):
+                    candidates.extend(self.reclone.base_path.glob(f"{folder}/{alias}.{extension}"))
+        parsed, failures, source_paths = {}, [], {}
         for path in dict.fromkeys(candidates):
+            path = path.resolve()
+            if not path.is_relative_to(self.reclone.base_path.resolve()):
+                continue
             try:
                 gb = parse_genbank(path.read_bytes())
                 parsed.setdefault(gb["sha256"], gb)
+                source_paths.setdefault(gb["sha256"], []).append(path.relative_to(self.reclone.base_path.resolve()).as_posix())
             except (InvalidGenBank, OSError):
                 failures.append("A local GenBank candidate could not be parsed.")
         if len(parsed) > 1:
-            return None, ["Local GenBank candidates disagree; no file selected automatically."]
-        return next(iter(parsed.values()), None), failures
+            return None, ["Local GenBank candidates disagree; no file selected automatically."], []
+        gb = next(iter(parsed.values()), None)
+        return gb, failures, sorted(set(source_paths.get(gb["sha256"], []))) if gb else []
 
     def get_part_details(self, key: str, selected_bbf: str | None = None) -> dict:
         key = self.aliases.get(normalize_id(key), key)
@@ -265,23 +271,31 @@ class PartService:
         bbf = selected_bbf or next(iter(details["bbf_ids"]), None)
         upstream = self.freegenes.fetch_genbank(bbf) if bbf else {"status": "absent", "message": "No BBF cross-reference"}
         details["sequence_status"] = upstream["status"]
+        upstream_gb = None
         if upstream.get("raw"):
-            details["genbank"] = parse_genbank(upstream["raw"])
+            try:
+                upstream_gb = parse_genbank(upstream["raw"])
+            except InvalidGenBank:
+                upstream = {"status": "invalid", "message": "FreeGenes returned an invalid GenBank record"}
+                details["sequence_status"] = upstream["status"]
+        if upstream_gb and upstream["status"] != "stale cached":
+            details["genbank"] = upstream_gb
             details["provenance"]["genbank"] = upstream["provenance"]
-            if upstream["status"] == "stale cached":
-                details["warnings"].append("Using a previous FreeGenes GenBank revision because the current request is unavailable.")
-        elif upstream["status"] in ("invalid", "withdrawn"):
-            details["warnings"].append(upstream.get("message", "Invalid upstream GenBank") + "; local DNA was not substituted.")
         else:
-            gb, warnings = self._local_genbank(details, selected_bbf)
+            gb, warnings, source_paths = self._local_genbank(details, selected_bbf)
             details["warnings"].extend(warnings)
             if gb:
                 details["genbank"] = gb
                 details["sequence_status"] = "local fallback"
                 details["provenance"]["genbank"] = {"source": "Reclone local checkout", "sha256": gb["sha256"],
                     "cache_status": "local fallback", "upstream_status": upstream["status"],
-                    "revision": "checkout file hash", "reason": upstream.get("message")}
-                details["warnings"].append(f"Using a local GenBank fallback: FreeGenes status is {upstream['status']}.")
+                    "revision": "checkout file hash", "source_paths": source_paths,
+                    "reason": upstream.get("message") or "Current FreeGenes file unavailable; only a previous cached revision was returned"}
+                details["warnings"].append("Using the local Open DNA collection GenBank because FreeGenes could not provide a current valid file.")
+            elif upstream_gb:
+                details["genbank"] = upstream_gb
+                details["provenance"]["genbank"] = upstream["provenance"]
+                details["warnings"].append("Using a previous FreeGenes GenBank revision because the current request is unavailable and no unambiguous local file was found.")
             else:
                 details["warnings"].append(upstream.get("message", "No usable GenBank record found"))
         gb = details["genbank"]

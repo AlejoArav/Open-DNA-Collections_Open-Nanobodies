@@ -29,6 +29,7 @@
 
 - Match sources through normalized identifiers and explicit ODC-to-BBF aliases. Names are search terms, not proof of identity.
 - Prefer verified FreeGenes records for FreeGenes GenBank and FreeGenes plate/well information. Retain Reclone identity and collection associations.
+- If FreeGenes cannot provide a current valid GenBank (missing, unavailable, invalid or withdrawn), use a valid, unambiguous local Open DNA file matched by exact BBF/ODC identity. Try local files before a stale FreeGenes cache; preserve the fallback label, original upstream status, relative source paths and hash. Current verified FreeGenes files still take precedence.
 - Keep physical locations as source-specific records. Never splice a plate name from one record with a well from another, or conflate a Reclone distribution plate with a FreeGenes plate.
 - Preserve multiple locations, conflicting aliases, duplicate records, and source revisions. Do not silently choose the first match.
 - Use explicit provenance: repository/source, commit or revision, URL, retrieval time, content hash, cache status, and field-level fallback where relevant.

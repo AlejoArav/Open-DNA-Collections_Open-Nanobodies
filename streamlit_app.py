@@ -547,7 +547,7 @@ def main() -> None:
     elif page == "Interactive Builder":
         builder_revision = manifest_revision(APP_BASE / "data" / "freegenes" / "manifest.json")
         show_builder_page(load_part_service(reclone_revision, builder_revision, PART_INDEX_VERSION),
-                          revision=f"{reclone_revision}:{builder_revision}")
+                          revision=f"{PART_INDEX_VERSION}:{reclone_revision}:{builder_revision}")
     elif page == "Debug":
         show_debug_page(service, freegenes)
 

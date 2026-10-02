@@ -51,12 +51,12 @@ Public API/file probes during planning established:
 | --- | --- |
 | ODC ID and Reclone collection | Preserve Reclone metadata and explicit BBF cross-reference |
 | FreeGenes name/description/cloning metadata | Verified available backend record, otherwise pinned FreeGenes CSV snapshot; keep conflicting source values accessible |
-| GenBank bytes and derived sequence/features | Usable verified FreeGenes resource, then its last successful cache; local file only with visible fallback status |
+| GenBank bytes and derived sequence/features | Current usable verified FreeGenes resource, then valid unambiguous local Open DNA file with visible fallback status, then a validated previous FreeGenes cache |
 | FreeGenes plate/well | Verified location records from an accessible authoritative feed, then cached records from that feed |
 | Reclone plate/well | Retain separately as Reclone distribution locations; do not relabel them as FreeGenes |
 | Missing / invalid / ambiguous match | Preserve explicit status and conflict details; never name-match silently |
 
-Treat plate name, plate number, well row/column/address, distribution/version, and provider as a single location record. Preserve every valid location. A confirmed absent field can fall back with field provenance; a withdrawn record or invalid upstream GB must not silently be replaced by an apparently current local record.
+Treat plate name, plate number, well row/column/address, distribution/version, and provider as a single location record. Preserve every valid location. Per the user's fallback correction, missing, unavailable, invalid or withdrawn upstream GenBank files may use validated local DNA, explicitly labeled as local with the original upstream status and source hash preserved.
 
 Use user-facing messages that reflect reality: `GenBank and metadata retrieved from FreeGenes GitHub (snapshot: 2023-09-15)`, `Using cached FreeGenes data; refresh unavailable`, or `FreeGenes plate/well data unavailable; showing Reclone locations`. Use `Information pulled directly from the FreeGenes database` only for a verified direct backend response.
 
@@ -194,3 +194,11 @@ Reproduced `KeyError: 'display_name'` at the Search & Browse dropdown by retaini
 `PART_INDEX_VERSION` v4 is now an explicit hashed loader argument and part of saved-result revisions. Each PartService carries its schema version; a cache validator rejects instances with a missing/outdated version. Regression checks prove reconstruction when only the schema changes or an incompatible instance survives, without changing dataset manifests. Legacy-record tests cover an existing dropdown, details, builder and a new search. All 94 tests, UTF-8 smoke and diff checks pass. These checks reproduce the reported failure locally; no direct access to Cloud runtime logs was used.
 
 Browser validation: Taq search and dropdown selection survived reruns; View details opened Taq with the viewer and all five downloads. Closing details and navigating to Builder rendered its database dropdown without console errors. Screenshot: `search-cache-keyerror-fixed.png` in the task visualization directory. The temporary server was stopped; changes remain local and have not yet been pushed to Cloud's source branch.
+
+## Local GenBank fallback correction — 2026-10-02
+
+Per the user's request, local Open DNA GenBank files now serve as fallback for every unavailable current FreeGenes file, including missing/404, network errors, invalid GenBank and withdrawn entries. Current verified FreeGenes bytes remain preferred; local files are tried before a previous FreeGenes cache. Exact BBF/ODC aliases, explicit selection for conflicting BBF identities, successful parsing and identical candidate bytes are required. Indexed local files and exact `.gb`, `.gbk` and `.genbank` names in known collection folders are supported. Resolved paths stay inside the checkout, and provenance retains relative source paths, hash and the original upstream status. If no valid local file exists, validated stale FreeGenes bytes remain a last resort; otherwise metadata-only exports and the unavailable state remain.
+
+The viewer, feature table, sequence exports and Builder share the selected record. Index version v5 invalidates older PartService instances, saved search results and Builder outputs after the policy change. Source datasets and raw GB bytes are preserved.
+
+Validation: 104 unit/integration tests passed, UTF-8 smoke checks and diff checks passed. Regression cases cover absent indexes, HTTP 404, timeouts, invalid/withdrawn FreeGenes records, ODC-alias `.gbk` discovery, local-versus-stale precedence, invalid/unrelated local files and explicit BBF selection. A controlled offline browser run opened Taq, displayed its local-fallback notice, white viewer, 4,622 bp, 11 features and all five downloads. The downloaded GB exactly matched `Open Enzyme Collection/Plasmids_Genbank/ODC_0016.gb`, SHA-256 `19cb6fd8807f8a162022bbfa83c8bea5bc8a957cacb7f45730cd0b3941a01b2c`. Closing/reopening worked with no console errors. Screenshot: `local-genbank-fallback.png` in the task visualization directory. The temporary server was stopped before commit preparation.

@@ -128,15 +128,18 @@ def test_upstream_bytes_preferred_to_different_local_file(tmp_path, gb_bytes):
     assert details["provenance"]["genbank"]["source"] == "FreeGenes GitHub"
 
 
-def test_invalid_upstream_not_silently_replaced_and_metadata_export_works(tmp_path, gb_bytes):
+def test_invalid_upstream_uses_labeled_local_genbank(tmp_path, gb_bytes):
     local = make_reclone(tmp_path)
     folder = tmp_path / "genbank"; folder.mkdir()
     (folder / "BBF10K_000001.gb").write_bytes(gb_bytes)
     parts = PartService(local, make_freegenes(tmp_path, records=[metadata_record()], paths=["genbank/BBF10K_000001.gb"], client=Client(b"bad")))
     details = parts.get_part_details("ODC_0001")
-    assert details["sequence_status"] == "invalid"
-    assert details["genbank"] is None
-    assert set(export_part(details)) == {"csv", "txt"}
+    assert details["sequence_status"] == "local fallback"
+    assert details["genbank"]["raw"] == gb_bytes
+    assert details["provenance"]["genbank"]["upstream_status"] == "invalid"
+    assert details["provenance"]["genbank"]["source_paths"] == ["genbank/BBF10K_000001.gb"]
+    assert export_part(details)["gb"] == gb_bytes
+    assert any("local Open DNA collection" in w for w in details["warnings"])
 
 
 def test_no_manifest_local_genbank_fallback_is_labeled(tmp_path, gb_bytes):
@@ -148,6 +151,84 @@ def test_no_manifest_local_genbank_fallback_is_labeled(tmp_path, gb_bytes):
     assert details["sequence_status"] == "local fallback"
     assert details["genbank"]["raw"] == gb_bytes
     assert details["provenance"]["genbank"]["upstream_status"] == "absent"
+
+
+@pytest.mark.parametrize("failure,status", [
+    ("missing_index", "absent"), ("http404", "absent"),
+    ("timeout", "unavailable"), ("withdrawn", "withdrawn")])
+def test_freegenes_failures_resolve_local_odc_alias_and_gbk_file(tmp_path, gb_bytes, failure, status):
+    local = make_reclone(tmp_path)
+    folder = tmp_path / "Local Collection" / "genbank_seq"
+    folder.mkdir(parents=True)
+    (folder / "ODC_0001.gbk").write_bytes(gb_bytes)
+    client = Client(gb_bytes)
+    upstream = make_freegenes(tmp_path, records=[metadata_record()], client=client,
+                             paths=[] if failure == "missing_index" else ["genbank/BBF10K_000001.gb"])
+    if failure == "http404":
+        response = requests.Response(); response.status_code = 404
+        client.fail = requests.HTTPError(response=response)
+    elif failure == "timeout":
+        client.fail = requests.Timeout()
+    elif failure == "withdrawn":
+        assert upstream.fetch_genbank("BBF10K_000001")["status"] == "direct"
+        upstream.payload["genbank_paths"] = []
+    details = PartService(local, upstream).get_part_details("ODC_0001")
+    assert details["sequence_status"] == "local fallback"
+    assert details["genbank"]["raw"] == gb_bytes
+    assert export_part(details)["gb"] == gb_bytes
+    assert details["provenance"]["genbank"]["upstream_status"] == status
+    assert details["provenance"]["genbank"]["source_paths"] == ["Local Collection/genbank_seq/ODC_0001.gbk"]
+
+
+def test_local_file_preferred_to_stale_freegenes_but_stale_cache_remains_last_resort(tmp_path, gb_bytes):
+    local = make_reclone(tmp_path)
+    client = Client(gb_bytes)
+    upstream = make_freegenes(tmp_path, records=[metadata_record()],
+                             paths=["genbank/BBF10K_000001.gb"], client=client)
+    assert upstream.fetch_genbank("BBF10K_000001")["status"] == "direct"
+    upstream.manifest["source_commit"] = "b" * 40
+    client.fail = requests.Timeout()
+    folder = tmp_path / "genbank"; folder.mkdir()
+    path = folder / "ODC_0001.gb"
+    local_bytes = gb_bytes.replace(b"Annotated test", b"Local alternate")
+    path.write_bytes(local_bytes)
+    parts = PartService(local, upstream)
+    details = parts.get_part_details("ODC_0001")
+    assert details["sequence_status"] == "local fallback"
+    assert details["genbank"]["raw"] == local_bytes
+    assert details["provenance"]["genbank"]["upstream_status"] == "stale cached"
+    path.unlink()
+    details = parts.get_part_details("ODC_0001")
+    assert details["sequence_status"] == "stale cached"
+    assert details["genbank"]["raw"] == gb_bytes
+
+
+@pytest.mark.parametrize("status", ["absent", "unavailable", "invalid", "withdrawn"])
+def test_no_valid_matching_local_file_keeps_failure_and_metadata_exports(tmp_path, gb_bytes, monkeypatch, status):
+    local = make_reclone(tmp_path)
+    folder = tmp_path / "genbank"; folder.mkdir()
+    (folder / "ODC_0001.gb").write_bytes(b"invalid local file")
+    (folder / "ODC_0002.gb").write_bytes(gb_bytes)
+    upstream = make_freegenes(tmp_path)
+    monkeypatch.setattr(upstream, "fetch_genbank", lambda part_id: {"status": status, "message": "Unavailable upstream file"})
+    details = PartService(local, upstream).get_part_details("ODC_0001")
+    assert details["sequence_status"] == status
+    assert details["genbank"] is None
+    assert set(export_part(details)) == {"csv", "txt"}
+    assert any("local GenBank candidate" in w for w in details["warnings"])
+
+
+def test_local_fallback_respects_explicit_bbf_choice_in_conflicting_aliases(tmp_path, gb_bytes):
+    local = make_reclone(tmp_path, rows=[
+        {"ODC ID": "ODC_0001", "BBF ID": "BBF10K_000001", "Name": "One", "Collection": "Kit"},
+        {"ODC ID": "ODC_0001", "BBF ID": "BBF10K_000002", "Name": "Two", "Collection": "Kit"}])
+    folder = tmp_path / "genbank"; folder.mkdir()
+    (folder / "BBF10K_000001.gb").write_bytes(gb_bytes)
+    (folder / "ODC_0001.gb").write_bytes(gb_bytes)
+    parts = PartService(local, make_freegenes(tmp_path))
+    assert parts.get_part_details("ODC_0001")["sequence_status"] == "ambiguous identity"
+    assert parts.get_part_details("ODC_0001", "BBF10K_000001")["sequence_status"] == "local fallback"
+    assert parts.get_part_details("ODC_0001", "BBF10K_000002")["genbank"] is None
 
 
 def test_duplicate_alias_conflict_requires_exact_bbf_selection(tmp_path, gb_bytes):
