@@ -126,7 +126,7 @@ Tests should use small offline fixtures for exact aliases, duplicate IDs, multip
 - [ ] Find an accessible authoritative FreeGenes plate/well source and document identity/version semantics.
 - [x] Establish isolated `.venv` dependencies and verify the 10-test pre-change baseline.
 - [x] Implement Goal 1 within its documented unavailable-location allowance; see `GOAL1_VALIDATION.md`.
-- [ ] Implement Goal 2 (viewer and part analysis).
+- [x] Implement Goal 2 (viewer and part analysis); see `GOAL2_VALIDATION.md`.
 - [ ] Implement Goal 3 (plasmid assembly).
 
 Defaults chosen: dialog for details; selective external cache; merged search includes upstream-only records; ordered builder controls; raw sequence analysis remains available without a nomenclature match. Only exact authoritative location endpoint/access and additional SapI/uLoop scheme rules remain necessary source inputs. Viewer choice remains conditional on its spike.
@@ -162,3 +162,13 @@ Replaced checkbox-only dataframe selection with a locally bundled Streamlit v1 t
 Part Details hides metadata retrieval banners/timestamps, parser warnings, circular/linear-description warnings, missing-location notices, and all source/provenance sections/captions. Actual locations, metadata values, sequence/features and exports remain. Source diagnostics are preserved internally/in exports; ambiguous or unavailable DNA is still handled explicitly.
 
 Validation: 52 tests passed; smoke script and diff check passed. Browser verified the 337-part inventory, sorted name-cell click, a different cell reopening the same part after native dismissal, hidden messages, and all five detail download controls. No viewer/builder work started.
+
+## Goal 2 completion checkpoint — 2026-10-02
+
+Added locally pinned TeselaGen OVE 0.8.42 to shared Part Details and Builder views. The successful spike established the inclusive-coordinate adapter and required iframe sizing delay. Readiness retries, deferred mounting until visible width, responsive remounting, and module-level registration make the component work in dialogs and collapsed expanders. Actual browser checks covered circular/linear zoom, rotation, sequence scrolling, forward/reverse feature selection, and an origin-crossing reverse join. OVE's joined-feature selection/size covers the bounding span; exact segments are preserved and the difference is explained beside the viewer.
+
+Interactive Builder now provides Analyze / Generate Part from Reclone records, pasted DNA/FASTA, or uploaded GenBank/FASTA/DNA. Explicit topology, enzyme and scheme settings produce both-strand BsaI/SapI recognition/cuts, physical overhangs, candidates and internal-site reports. The workbook configuration retains cell/hash/version provenance; SapI and missing uLoop rules stay unmapped. Fragment choice is explicit, invalid fragments remain reports only, and source changes invalidate previous analysis. Generated linear GB/FASTA/CSV/TXT and feature CSV share one validated reparsed record, with correctly projected features and source/end provenance. Original sequences and physical inventory locations remain unchanged.
+
+Validation: **84 tests passed**, legacy smoke script and diff check passed. Browser downloads agreed across formats; an annotated generated GB preserved reverse joined extraction independently. Real database DNA matched the Part Details source hash. Ambiguous DNA and a custom interval containing an additional cut blocked generation. Final cold-start builder flow and console/server checks passed. Exact commands, source references, hashes, artifact names, scientific conventions, limits and the requirement-by-requirement audit are in `GOAL2_VALIDATION.md`.
+
+No required Goal 2 acceptance item remains open. Full multi-part assembly, compatibility/coding-junction checks, reverse-oriented assembly products, and design save/restore remain Goal 3. FreeGenes physical location sourcing remains the unchanged Goal 1 limitation. No commit, push, deployment, or original dataset rewrite was performed.

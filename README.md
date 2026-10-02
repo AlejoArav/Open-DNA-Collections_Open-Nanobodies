@@ -21,11 +21,22 @@ The local implementation provides:
 
 - **Home**: collection overview.
 - **Search & Browse**: Reclone inventory search enriched with matching FreeGenes records. FreeGenes-only parts are excluded. Submit an empty query to browse Reclone parts. Click any cell in a row to open details; column headers sort the displayed page. Keyboard users can focus a row and press Enter or Space.
-- **Part details dialog**: metadata, source-specific physical locations, sequence, complete GenBank features and GenBank/CSV/FASTA/TXT downloads. Retrieval/parser notices and source/provenance sections are hidden in this dialog; provenance remains in exports. A separate feature CSV is also available.
+- **Part details dialog**: metadata, source-specific physical locations, an interactive sequence viewer, complete GenBank features and GenBank/CSV/FASTA/TXT downloads. Retrieval/parser notices and source/provenance sections are hidden in this dialog; provenance remains in exports. A separate feature CSV is also available.
 - **BLAST Search**: the existing local sequence index and optional NCBI fallback.
+- **Interactive Builder**: Analyze / Generate Part from a Reclone record, pasted DNA/FASTA, or an uploaded GenBank/FASTA/DNA file. Analyze BsaI/SapI cuts, select a digestion fragment explicitly, and export its sequence, physical ends, and retained features.
 - **Debug**: freshness, diagnostics, manifests, FreeGenes refresh, dataset exports, and Reclone platemaps.
 
-Analytics and the standalone Part Details/Data Management routes were removed. The deployed URL above may still run the previous version; these changes have not been deployed. Plasmid viewing and the Interactive Builder are planned separately in [the implementation plan](docs/IMPLEMENTATION_PLAN.md).
+Analytics and the standalone Part Details/Data Management routes were removed. The deployed URL above may still run the previous version; these changes have not been deployed. Full multi-part plasmid assembly remains Goal 3 in [the implementation plan](docs/IMPLEMENTATION_PLAN.md).
+
+### Viewing and generating parts
+
+Open a search result to explore its annotated circular or linear map. The viewer always uses a white background and dark text, regardless of the app theme. Click a feature to select its sequence, use the plus/minus controls to zoom, rotate circular maps with the arrow controls, and scroll the Sequence Map. Assets for MIT-licensed TeselaGen OVE 0.8.42 are bundled locally with a version/hash manifest. The viewer uses the same resolved GenBank as downloads and preserves source DNA. Unknown topology uses a linear display. Exact source feature locations remain in the full feature table: OVE selects joined features by their bounding endpoints, including gaps, and its size column describes that selection span.
+
+In **Interactive Builder**, choose an input and select topology explicitly, then choose an enzyme and nomenclature before clicking **Analyze sequence**. A topology override applies to this analysis/view only. Select a complete digestion product or choose cut boundaries yourself. The app lists recognition orientation, cuts on both strands, end sequences, mapped/unmapped labels, and fragment validity. **Generate selected part** stays disabled until a usable fragment is selected; ambiguous DNA, additional internal cuts, and overlapping cuts block validated exports. Changing input or analysis settings hides stale results until reanalysis.
+
+GenBank/FASTA/CSV/TXT exports describe the selected reference strand in 5′→3′ orientation: its left sticky overhang is included, while its right sticky overhang belongs to the complementary strand. Reports preserve both physical end words, complementary-strand sequence, cut boundaries, source hashes, and scheme provenance. Generated GenBank records are linear and reparsed before export. Complete retained features preserve biological part order; clipped features receive a partial-feature note, and clipped CDS translations are removed. Original records and physical inventory locations are never rewritten or assigned to virtual fragments.
+
+Analysis JSON, cut-site CSV, and a selected-fragment JSON report are downloadable even when the selected candidate cannot be generated. Limits are 5 MB input, 500,000 bases, and 10,000 recognition matches per orientation. Input accepts IUPAC ambiguity for inspection but does not silently resolve it or mutate DNA. The workbook provides four-base junction labels with cell/hash provenance; SapI three-base labels and additional uLoop level rules remain unmapped. No assembly, domestication, primer design, or ligation-efficiency prediction is performed. See [the nomenclature reference](docs/NOMENCLATURE_REFERENCE.md) and [Goal 2 validation](docs/GOAL2_VALIDATION.md).
 
 ### Local development
 

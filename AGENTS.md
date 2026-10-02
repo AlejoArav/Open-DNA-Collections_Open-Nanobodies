@@ -44,6 +44,14 @@
 - Preserve sequence orientation and junction bases exactly once during assembly. Remap features and retain source sequence hashes.
 - Keep source parts immutable. Do not silently domesticate sequences or add unrequested primer design/optimization.
 
+## Goal 2 contracts to preserve
+
+- Viewer assets are pinned in `ui/sequence_viewer/vendor/` with a hash/license manifest. Never print/minify/rebuild these bundles during routine exploration. Preserve the readiness retry, positive-width guard, two-frame mount delay, and responsive observer. Register the component at module import rather than in a render function.
+- `restriction_service.py` uses reference-strand cut boundaries. A generated top strand includes its left overhang and excludes the right complementary-strand overhang. Physical end words, bottom strand, cuts and provenance accompany it; Goal 3 must account for each junction exactly once.
+- `fragment_service.py` revalidates selected boundaries, projects features in biological part order, and reparses GB before export. Partial CDS translations must not survive clipping; reading-frame adjustment requires exact source positions/strand. GB COMMENT provenance is base64 UTF-8 JSON with a labeled prefix and wrapped lines.
+- Keep explicit candidate selection and stale-output guards for inputs and source revisions. Invalid fragments remain downloadable reports and cannot produce validated-part exports. Never attach original physical inventory locations to a generated virtual fragment.
+- Goal 2 checks and limits are recorded in `docs/GOAL2_VALIDATION.md`. Full multi-part assembly remains Goal 3.
+
 ## Validation and token discipline
 
 - Use focused file reads and small fixtures; do not dump thousands of gene HTML pages, full sequence CSVs, or upstream dependency trees into context.

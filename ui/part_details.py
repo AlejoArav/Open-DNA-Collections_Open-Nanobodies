@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from services.genbank_service import export_part, feature_table
+from .sequence_viewer import render_sequence_viewer
 
 
 def dismiss_details():
@@ -49,6 +50,7 @@ def render_details(details, location_status):
         c3.metric("Features", len(gb["features"]))
         c4.metric("Topology", gb["topology"])
         st.text(gb["description"])
+        render_sequence_viewer(gb, key=f"details_viewer_{details['part_key']}")
         st.markdown("### DNA sequence (5′ to 3′)")
         # Plain code/text, never interpolated untrusted HTML.
         st.code("\n".join(gb["sequence"][i:i+80] for i in range(0, gb["length"], 80)), language=None)

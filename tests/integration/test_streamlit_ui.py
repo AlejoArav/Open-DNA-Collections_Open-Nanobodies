@@ -33,7 +33,7 @@ def app(tmp_path, monkeypatch, gb_bytes):
 
 def test_navigation_home_and_debug_merge(app):
     labels = [b.label for b in app.sidebar.button]
-    assert labels == ["Home", "Search & Browse", "BLAST Search", "Debug"]
+    assert labels == ["Home", "Search & Browse", "BLAST Search", "Interactive Builder", "Debug"]
     assert not app.json
     assert all("Freshness" not in m.value and "Diagnostics" not in m.value for m in app.markdown)
     button(app, "Debug").click().run()
@@ -112,3 +112,73 @@ def test_row_click_event_opens_exact_key_and_does_not_reopen_on_close(app):
     button(app, "Close details").click().run()
     assert not app.session_state["details_open"]
     assert not app.exception
+
+
+def select(app, label, value):
+    return next(s for s in app.selectbox if s.label == label).select(value).run()
+
+
+def test_builder_explicit_selection_generate_downloads_and_stale_inputs(app):
+    button(app, "Interactive Builder").click().run()
+    app.radio(key="builder_mode").set_value("Paste DNA / FASTA").run()
+    app.text_area(key="builder_dna").set_value("GGTCTCAGGAGTTTTTTGCTTAGAGACC").run()
+    button(app, "Analyze sequence").click().run()
+    assert any("topology" in e.value for e in app.error)
+    select(app, "Analysis topology", "linear")
+    button(app, "Analyze sequence").click().run()
+    assert not app.exception
+    assert button(app, "Generate selected part").disabled
+    select(app, "Digestion fragment", 1)
+    assert not button(app, "Generate selected part").disabled
+    button(app, "Generate selected part").click().run()
+    assert not app.exception
+    assert any("10 bp" in e.value for e in app.success)
+    assert len(app.get("download_button")) == 8  # Three analysis reports, five generated formats.
+    select(app, "Enzyme", "SapI")
+    assert any("Inputs changed" in e.value for e in app.info)
+    assert not app.get("download_button")
+
+
+def test_builder_sapi_unmapped_and_invalid_fragment_blocks_generation(app):
+    button(app, "Interactive Builder").click().run()
+    app.radio(key="builder_mode").set_value("Paste DNA / FASTA").run()
+    app.text_area(key="builder_dna").set_value("GCTCTTCAGCATTTTTTTGCAGAAGAGC").run()
+    select(app, "Analysis topology", "linear")
+    select(app, "Enzyme", "SapI")
+    button(app, "Analyze sequence").click().run()
+    assert not app.exception
+    analysis = app.session_state["builder_analysis"]["analysis"]
+    assert all("Unmapped" in site["junction"]["status"] for site in analysis["sites"])
+    app.text_area(key="builder_dna").set_value("GCTCTTCAGCATTNTTTTGCAGAAGAGC").run()
+    button(app, "Analyze sequence").click().run()
+    select(app, "Digestion fragment", 1)
+    assert button(app, "Generate selected part").disabled
+    assert any("ambiguous" in e.value for e in app.error)
+
+
+def test_builder_database_inventory_and_missing_sequence(app):
+    button(app, "Interactive Builder").click().run()
+    selector = next(s for s in app.selectbox if s.label == "Reclone part")
+    assert len(selector.options) == 3  # Placeholder plus two Reclone identities; no upstream-only part.
+    selector.select("BBF10K_000002").run()
+    select(app, "Analysis topology", "linear")
+    button(app, "Analyze sequence").click().run()
+    assert not app.exception
+    assert any("No usable sequence" in e.value for e in app.error)
+
+
+def test_builder_database_revision_change_hides_previous_analysis(app, tmp_path):
+    import json
+    button(app, "Interactive Builder").click().run()
+    select(app, "Reclone part", "BBF10K_000001")
+    select(app, "Analysis topology", "circular")
+    button(app, "Analyze sequence").click().run()
+    assert not app.exception and app.session_state["builder_analysis"]
+    manifest = tmp_path / "data/freegenes/manifest.json"
+    value = json.loads(manifest.read_text())
+    value["revision_test"] = "changed_generation"
+    manifest.write_text(json.dumps(value))
+    app.run()
+    assert not app.exception
+    assert any("Inputs changed" in e.value for e in app.info)
+    assert not app.get("download_button")

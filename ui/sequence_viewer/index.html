@@ -1,0 +1,67 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<script>
+// Announce before loading the large local assets; retry until host acknowledgement.
+const send = (type,data) => parent.postMessage({isStreamlitMessage:true,type,...data},'*');
+let payload, editor, currentHash, mountedWidth, initializing=false, resizeTimer;
+const readyTimer=setInterval(()=>send('streamlit:componentReady',{apiVersion:1}),100);
+window.addEventListener('message',event=>{
+  if(event.source!==parent || event.data?.type!=='streamlit:render') return;
+  clearInterval(readyTimer); payload=event.data.args.payload;
+  send('streamlit:setFrameHeight',{height:610}); mount();
+});
+window.addEventListener('pagehide',()=>clearInterval(readyTimer));
+function mount() {
+  const root=document.getElementById('viewer-root');
+  if(!payload || !window.ove || !root || initializing) return;
+  const width=root.getBoundingClientRect().width;
+  // Collapsed Streamlit expanders have zero width. Mount only after expansion.
+  if(width<=0 || (editor && currentHash===payload.content_hash && mountedWidth===width)) return;
+  initializing=true;
+  // OVE measures its split panels at mount. Wait until the iframe has real height.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    try {
+      if(editor) editor.close();
+      const root=document.getElementById('viewer-root'), node=document.createElement('div');
+      node.style.height='570px'; root.replaceChildren(node);
+      // Keep the map and sequence readable regardless of the surrounding app theme.
+      root.className='';
+      editor=window.ove.createVectorEditor(node,{editorName:'sourceViewer',readOnly:true,
+        disableSetReadOnly:true,showReadOnly:false,showMenuBar:false,hideSingleImport:true,
+        ToolBarProps:{toolList:[]}});
+      editor.updateEditor({readOnly:true,sequenceData:payload.sequenceData,
+        annotationVisibility:{features:true,parts:false,primers:false,cutsites:false},
+        annotationLabelVisibility:{features:true,parts:false,primers:false,cutsites:false},
+        panelsShown:[payload.sequenceData.circular ? [{id:'circular',name:'Circular Map',active:true},
+                       {id:'rail',name:'Linear Map',active:false}] : [{id:'rail',name:'Linear Map',active:true}],
+                     [{id:'sequence',name:'Sequence Map',active:true},{id:'properties',name:'Features',active:false}]]});
+      currentHash=payload.content_hash;
+      mountedWidth=root.getBoundingClientRect().width;
+      document.getElementById('status').textContent='';
+    } catch(error) { document.getElementById('status').textContent='Viewer could not load. The DNA sequence and feature list below remain available.'; }
+    finally {initializing=false;}
+  }));
+}
+window.addEventListener('DOMContentLoaded',()=>{
+  if(window.ResizeObserver) new window.ResizeObserver(()=>{
+    clearTimeout(resizeTimer); resizeTimer=setTimeout(mount,100);
+  }).observe(document.getElementById('viewer-root'));
+  mount();
+});
+window.addEventListener('load',mount);
+</script>
+<link rel="stylesheet" href="vendor/ove.css">
+<style>
+html,body{color-scheme:light;background:#fff;color:#182026}
+body{margin:0;font:14px sans-serif}
+#viewer-root{height:575px;width:100%;background:#fff;color:#182026}
+.veToolbar-outer,.dropzone-dragging-message{display:none!important}
+.veEditor{height:570px!important;background:#fff;color:#182026}
+#status{margin:4px}
+</style>
+<script src="vendor/index.umd.js" defer></script>
+</head><body><p id="status" role="status">Loading sequence viewer…</p><div id="viewer-root"></div>
+<script>
+// The source record is immutable: disable file import/drop into this viewer.
+document.getElementById('viewer-root').addEventListener('drop',event=>{event.preventDefault();event.stopImmediatePropagation();},true);
+document.getElementById('viewer-root').addEventListener('dragover',event=>{event.preventDefault();event.stopImmediatePropagation();},true);
+</script></body></html>

@@ -1,0 +1,2 @@
+# Preserve pinned viewer asset bytes and manifest hashes on every platform.
+ui/sequence_viewer/vendor/* -text

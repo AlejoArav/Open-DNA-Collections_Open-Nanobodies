@@ -1,0 +1,13 @@
+{
+  "package": "@teselagen/ove",
+  "version": "0.8.42",
+  "git_commit": "77702b6e8ebedb554af14ee0ea90cf04fc101954",
+  "npm_integrity": "sha512-1OHLi0b+W2eZ+Nd2sLvpX6M3/EZpaze6brqoaUAkkAdsczANCfJYV8fYPPeruDdEb0Lbwa67/Na0HRouUt9ijQ==",
+  "license": "MIT",
+  "license_url": "https://raw.githubusercontent.com/TeselaGen/tg-oss/77702b6e8ebedb554af14ee0ea90cf04fc101954/LICENSE",
+  "files": {
+    "index.umd.js": "5ff67353391a7f917a67d93dc93c52648fbf273254b8f25f5b38775c894b8b18",
+    "LICENSE-TeselaGen.txt": "3bcf899acc9ff141f15ea1b9194a4ed57837433a44c317ef1a3e834b405dd2bd",
+    "ove.css": "fba7b111f8f8dad9d32ba3f4aac186f9c19d6082ff897e2a0fd6d9ab3cad3a92"
+  }
+}

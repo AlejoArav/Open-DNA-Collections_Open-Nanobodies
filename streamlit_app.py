@@ -22,6 +22,7 @@ from services.part_service import PartService
 from ui.part_details import open_details, part_details_dialog
 from ui.results_table import render_results_table
 from ui.debug import show_debug_page
+from ui.builder import show_builder_page
 
 APP_BASE = Path(os.getenv("OPEN_DNA_BASE_PATH", str(Path(__file__).parent))).resolve()
 
@@ -508,6 +509,7 @@ def main() -> None:
         "Home",
         "Search & Browse",
         "BLAST Search",
+        "Interactive Builder",
         "Debug",
     ]
 
@@ -531,6 +533,10 @@ def main() -> None:
         show_search_page(service, freegenes, reclone_revision)
     elif page == "BLAST Search":
         show_blast_page(service)
+    elif page == "Interactive Builder":
+        builder_revision = manifest_revision(APP_BASE / "data" / "freegenes" / "manifest.json")
+        show_builder_page(load_part_service(reclone_revision, builder_revision),
+                          revision=f"{reclone_revision}:{builder_revision}")
     elif page == "Debug":
         show_debug_page(service, freegenes)
 

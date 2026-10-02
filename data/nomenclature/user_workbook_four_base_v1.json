@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "user_workbook_four_base_v1",
+  "name": "User workbook: four-base module junctions",
+  "version": "1.0.0",
+  "overhang_length": 4,
+  "orientation": "Junction words are the source/reference strand read 5' to 3'. A fragment's physical right 5' end is the reverse complement of its reference junction word.",
+  "source": {
+    "file": "DNA_NOMENCLATURE_FOR_GOLDENGATE_ASSEMBLY.xlsx",
+    "sha256": "f45eac44b2858fad7e74d20739ffd179a046aa32d4e9dc663ca0aa08eaa7786d",
+    "worksheet": "DNA modules scheme",
+    "reference": "docs/NOMENCLATURE_REFERENCE.md"
+  },
+  "limitations": ["No SapI three-base labels supplied", "No alternating uLoop assembly-level rules supplied", "C1/C2/C3 aliases are unverified and excluded"],
+  "junctions": [
+    {"label": "A", "sequence": "GGAG", "aliases": [], "label_cells": "B4:B5", "sequence_cell": "B6"},
+    {"label": "B", "sequence": "TACT", "aliases": [], "label_cells": "D5:D6", "sequence_cell": "D7"},
+    {"label": "C", "sequence": "AATG", "aliases": [], "label_cells": "L9:L10", "sequence_cell": "L11"},
+    {"label": "D", "sequence": "AGGT", "aliases": [], "label_cells": "N9", "sequence_cell": "N11"},
+    {"label": "E", "sequence": "GCTT", "aliases": [], "label_cells": "T6:T7", "sequence_cell": "T8"},
+    {"label": "F", "sequence": "CGCT", "aliases": [], "label_cells": "V5:V6", "sequence_cell": "V7"},
+    {"label": "T1", "sequence": "CCAT", "aliases": ["N1"], "label_cells": "F6:F7", "sequence_cell": "F8"},
+    {"label": "T2", "sequence": "GTCA", "aliases": ["N2"], "label_cells": "H7:H8", "sequence_cell": "H9"},
+    {"label": "T3", "sequence": "TCCA", "aliases": ["N3"], "label_cells": "J8:J9", "sequence_cell": "J10"},
+    {"label": "T4", "sequence": "TTCG", "aliases": ["N4"], "label_cells": "P8:P9", "sequence_cell": "P10"},
+    {"label": "T5", "sequence": "CGGC", "aliases": ["N5"], "label_cells": "R7:R8", "sequence_cell": "R9"}
+  ],
+  "modules": [
+    {"left": "A", "right": "B", "role": "promoter / 5' UTR", "source_cell": "C5"},
+    {"left": "B", "right": "C", "role": "RBS", "source_cells": "E34:E41"},
+    {"left": "C", "right": "D", "role": "CDS", "source_cell": "M10"},
+    {"left": "E", "right": "F", "role": "terminator", "source_cell": "U6"}
+  ]
+}
