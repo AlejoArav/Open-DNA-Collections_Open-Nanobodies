@@ -3,3 +3,9 @@
 *.pickle
 *.old
 credentials*
+.venv/
+__pycache__/
+.pytest_cache/
+.runtime/
+.streamlit/secrets.toml
+data/cache/blast/

@@ -38,11 +38,24 @@ jobs:
             --repo Reclone-org/Open-DNA-Collections \
             --branch main
 
+      - name: Refresh FreeGenes metadata index
+        if: always() && !cancelled()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/sync_freegenes_data.py --base-dir .
+
       - name: Commit updated cache artifacts
+        if: always() && !cancelled()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/cache/*.parquet data/cache/*.json data/cache/*.fasta
+          if [ -d data/cache/snapshots ]; then
+            git add data/cache/snapshots
+          fi
+          if [ -f data/freegenes/manifest.json ]; then
+            git add data/freegenes/manifest.json data/freegenes/index-*.json*
+          fi
           if git diff --cached --quiet; then
             echo "No cache changes to commit"
           else

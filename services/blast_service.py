@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import logging
 import re
 import shutil
@@ -16,6 +17,7 @@ from typing import Dict, List, Optional
 import requests
 
 from .data_processing import normalize_id
+from .snapshot_service import artifact_path
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +38,9 @@ class BlastService:
         self.blast_dir = self.cache_dir / "blast"
         self.blast_dir.mkdir(parents=True, exist_ok=True)
 
-        self.local_fasta_path = self.cache_dir / "blast_local_sequences.fasta"
+        manifest_path = self.cache_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+        self.local_fasta_path = artifact_path(self.base_path, manifest, "blast_local_sequences.fasta")
         self.local_db_prefix = self.blast_dir / "odc_local_nucl"
 
         self.ncbi_email = ncbi_email

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
+from .snapshot_service import artifact_path, validate_asset
 
 from .data_processing import (
     ENRICH_COLUMNS,
@@ -65,9 +66,11 @@ class DNACollectionDataService:
             self.main_df = self._load_parquet("main.parquet")
             self.platemaps_df = self._load_parquet("platemaps.parquet")
 
-            odc_lookup_path = self.cache_dir / "platemap_lookup_odc.parquet"
-            bbf_lookup_path = self.cache_dir / "platemap_lookup_bbf.parquet"
+            odc_lookup_path = artifact_path(self.base_path, self.manifest, "platemap_lookup_odc.parquet")
+            bbf_lookup_path = artifact_path(self.base_path, self.manifest, "platemap_lookup_bbf.parquet")
             if odc_lookup_path.exists() and bbf_lookup_path.exists():
+                validate_asset(odc_lookup_path, self.manifest)
+                validate_asset(bbf_lookup_path, self.manifest)
                 self.odc_lookup = pd.read_parquet(odc_lookup_path)
                 self.bbf_lookup = pd.read_parquet(bbf_lookup_path)
                 if "ODC_ID_NORM" in self.odc_lookup.columns:
@@ -77,8 +80,9 @@ class DNACollectionDataService:
             else:
                 self.odc_lookup, self.bbf_lookup = build_platemap_lookups(self.platemaps_df)
 
-            genbank_index_path = self.cache_dir / "genbank_index.parquet"
+            genbank_index_path = artifact_path(self.base_path, self.manifest, "genbank_index.parquet")
             if genbank_index_path.exists():
+                validate_asset(genbank_index_path, self.manifest)
                 self.genbank_index_df = pd.read_parquet(genbank_index_path)
 
             logger.info(
@@ -94,7 +98,8 @@ class DNACollectionDataService:
         self._load_local_fallback_data()
 
     def _load_parquet(self, filename: str) -> pd.DataFrame:
-        path = self.cache_dir / filename
+        path = artifact_path(self.base_path, self.manifest, filename)
+        validate_asset(path, self.manifest)
         if not path.exists():
             return pd.DataFrame()
         return pd.read_parquet(path)

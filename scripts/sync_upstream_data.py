@@ -13,6 +13,8 @@ import io
 import json
 import logging
 import os
+import tempfile
+import os
 import re
 import subprocess
 import sys
@@ -87,6 +89,7 @@ class GitHubUpstreamClient:
     def __init__(self, repo: str, branch: str, token: Optional[str] = None):
         self.repo = repo
         self.branch = branch
+        self.commit_sha: Optional[str] = None
         self.session = requests.Session()
         headers = {"Accept": "application/vnd.github+json"}
         if token:
@@ -106,6 +109,9 @@ class GitHubUpstreamClient:
     def list_target_files(self, commit_sha: str) -> List[str]:
         tree_url = f"https://api.github.com/repos/{self.repo}/git/trees/{commit_sha}"
         tree_data = self._get_json(tree_url, params={"recursive": "1"})
+        if tree_data.get("truncated"):
+            raise ValueError("Upstream tree is truncated; refusing a partial sync")
+        self.commit_sha = commit_sha
 
         matched: List[str] = []
         for node in tree_data.get("tree", []):
@@ -118,7 +124,9 @@ class GitHubUpstreamClient:
 
     def fetch_text_file(self, path: str) -> str:
         encoded_path = quote(path, safe="/")
-        raw_url = f"https://raw.githubusercontent.com/{self.repo}/{self.branch}/{encoded_path}"
+        if not self.commit_sha:
+            raise ValueError("Resolve the source commit before fetching files")
+        raw_url = f"https://raw.githubusercontent.com/{self.repo}/{self.commit_sha}/{encoded_path}"
         response = self.session.get(raw_url, timeout=60)
         response.raise_for_status()
         return _normalize_csv_text(response.text)
@@ -132,6 +140,7 @@ def load_data_from_upstream(
     client = GitHubUpstreamClient(repo=repo, branch=branch, token=token)
     commit_sha = client.get_branch_commit()
     files = client.list_target_files(commit_sha)
+    client.commit_sha = commit_sha
 
     logger.info("Found %s target CSV files in upstream %s@%s", len(files), repo, branch)
 
@@ -159,6 +168,8 @@ def load_data_from_upstream(
             )
 
     platemaps_df = pd.concat(platemap_frames, ignore_index=True) if platemap_frames else pd.DataFrame()
+    if main_df.empty:
+        raise ValueError("Upstream main dataset is missing or empty")
 
     source = SourceMetadata(
         source_repo=repo,
@@ -297,21 +308,31 @@ def write_artifacts(
     source_meta: SourceMetadata,
 ) -> Dict:
     cache_dir.mkdir(parents=True, exist_ok=True)
+    base_dir, cache_dir = base_dir.resolve(), cache_dir.resolve()
+    with tempfile.TemporaryDirectory(prefix=".staging-", dir=cache_dir) as temporary:
+        stage = Path(temporary).resolve()
+        if not stage.is_relative_to(cache_dir):
+            raise ValueError("Staging directory outside the cache")
+        return _write_artifacts_staged(base_dir, cache_dir, stage, main_df, platemaps_df, source_meta)
 
+
+def _write_artifacts_staged(base_dir, cache_dir, stage, main_df, platemaps_df, source_meta):
+    if main_df.empty:
+        raise ValueError("Cannot publish an empty Reclone dataset")
     odc_lookup, bbf_lookup = build_platemap_lookups(platemaps_df)
 
-    main_path = cache_dir / "main.parquet"
-    platemap_path = cache_dir / "platemaps.parquet"
-    odc_lookup_path = cache_dir / "platemap_lookup_odc.parquet"
-    bbf_lookup_path = cache_dir / "platemap_lookup_bbf.parquet"
-    genbank_index_path = cache_dir / "genbank_index.parquet"
+    main_path = stage / "main.parquet"
+    platemap_path = stage / "platemaps.parquet"
+    odc_lookup_path = stage / "platemap_lookup_odc.parquet"
+    bbf_lookup_path = stage / "platemap_lookup_bbf.parquet"
+    genbank_index_path = stage / "genbank_index.parquet"
 
     main_df.to_parquet(main_path, index=False)
     platemaps_df.to_parquet(platemap_path, index=False)
     odc_lookup.reset_index().to_parquet(odc_lookup_path, index=False)
     bbf_lookup.reset_index().to_parquet(bbf_lookup_path, index=False)
 
-    genbank_df, blast_fasta_path = build_genbank_assets(base_dir=base_dir, cache_dir=cache_dir)
+    genbank_df, blast_fasta_path = build_genbank_assets(base_dir=base_dir, cache_dir=stage)
     genbank_df.to_parquet(genbank_index_path, index=False)
 
     tracked_files = [
@@ -323,11 +344,16 @@ def write_artifacts(
         blast_fasta_path,
     ]
 
+    hashes = [_sha256_file(p) for p in tracked_files]
+    generation = hashlib.sha256("".join(hashes).encode()).hexdigest()
+    destination = (cache_dir / "snapshots" / generation).resolve()
+    if not destination.is_relative_to(cache_dir):
+        raise ValueError("Snapshot directory outside the cache")
     files_meta = []
     for file_path in tracked_files:
         files_meta.append(
             {
-                "path": str(file_path.relative_to(base_dir)),
+                "path": str((destination / file_path.name).relative_to(base_dir)).replace("\\", "/"),
                 "size_bytes": file_path.stat().st_size if file_path.exists() else 0,
                 "sha256": _sha256_file(file_path) if file_path.exists() else None,
             }
@@ -340,6 +366,7 @@ def write_artifacts(
         "source_commit": source_meta.source_commit,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "files": files_meta,
+        "sequence_source": {"source": "local-checkout", "commit": _git_head_sha(base_dir)},
         "counts": {
             "main_rows": int(len(main_df)),
             "platemap_rows": int(len(platemaps_df)),
@@ -350,7 +377,12 @@ def write_artifacts(
     }
 
     manifest_path = cache_dir / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    # Each generation is immutable. Publish its complete manifest only after all files exist.
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if not destination.exists():
+        os.replace(stage, destination)
+    from services.freegenes_service import atomic_write
+    atomic_write(manifest_path, json.dumps(manifest, indent=2).encode("utf-8"))
 
     logger.info("Wrote cache artifacts to %s", cache_dir)
     logger.info("Counts: %s", manifest["counts"])

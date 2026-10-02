@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+body { margin:0; font:14px sans-serif; background:var(--background); color:var(--text); }
+.scroll { max-height:420px; overflow:auto; border:1px solid #80808055; border-radius:8px; }
+table { border-collapse:separate; border-spacing:0; width:100%; text-align:left; }
+th { position:sticky; top:0; background:var(--secondary); z-index:1; }
+th, td { border-bottom:1px solid #80808033; padding:10px 12px; white-space:nowrap; }
+th button { background:none; border:none; color:inherit; font:inherit; cursor:pointer; padding:0; }
+tbody tr { cursor:pointer; }
+tbody tr:hover, tbody tr:focus-visible { background:var(--secondary); outline:2px solid var(--primary); outline-offset:-2px; }
+td { max-width:420px; overflow:hidden; text-overflow:ellipsis; }
+</style>
+</head>
+<body><div class="scroll"><table aria-label="Part search results"><thead></thead><tbody></tbody></table></div>
+<script>
+// Streamlit v1 component protocol; all cells use textContent, never source HTML.
+const send = (type, data) => window.parent.postMessage({isStreamlitMessage:true,type,...data}, "*");
+let rows = [], columns = [], sortColumn = -1, descending = false, disabled = false;
+function draw() {
+  const head = document.querySelector('thead');
+  const body = document.querySelector('tbody');
+  head.replaceChildren(); body.replaceChildren();
+  const headers = document.createElement('tr');
+  columns.forEach((name, index) => {
+    const th = document.createElement('th');
+    th.setAttribute('scope','col');
+    th.setAttribute('aria-sort',sortColumn === index ? (descending ? 'descending' : 'ascending') : 'none');
+    const button = document.createElement('button');
+    button.textContent = name + (sortColumn === index ? (descending ? ' ↓' : ' ↑') : '');
+    button.setAttribute('aria-label','Sort by ' + name);
+    button.disabled = disabled;
+    button.onclick = () => { descending = sortColumn === index ? !descending : false; sortColumn = index; draw(); };
+    th.append(button); headers.append(th);
+  });
+  head.append(headers);
+  const ordered = [...rows];
+  if (sortColumn >= 0) ordered.sort((a,b) => (descending ? -1 : 1) *
+    a.cells[sortColumn].localeCompare(b.cells[sortColumn],undefined,{numeric:true}));
+  ordered.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.tabIndex = disabled ? -1 : 0;
+    tr.setAttribute('aria-label','Open details for ' + row.part_key);
+    tr.dataset.partKey = row.part_key;
+    row.cells.forEach(value => { const td = document.createElement('td'); td.textContent=value; td.title=value; tr.append(td); });
+    const open = () => { if (!disabled) send('streamlit:setComponentValue',{
+      dataType:'json',value:{part_key:row.part_key,event_id:crypto.randomUUID()}}); };
+    tr.onclick = open;
+    tr.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } };
+    body.append(tr);
+  });
+  send('streamlit:setFrameHeight',{height:Math.min(422,document.querySelector('.scroll').scrollHeight + 2)});
+}
+window.addEventListener('message', event => {
+  if (event.source !== window.parent || !event.data || event.data.type !== 'streamlit:render') return;
+  clearInterval(readyTimer);
+  const args = event.data.args;
+  rows = args.rows; columns = args.columns; disabled = event.data.disabled;
+  const theme = event.data.theme || {};
+  const style = document.documentElement.style;
+  style.setProperty('--background',theme.backgroundColor || '#ffffff');
+  style.setProperty('--secondary',theme.secondaryBackgroundColor || '#f0f2f6');
+  style.setProperty('--text',theme.textColor || '#31333f');
+  style.setProperty('--primary',theme.primaryColor || '#ff4b4b');
+  document.body.style.fontFamily = theme.font || 'sans-serif';
+  draw();
+});
+// A cached iframe can execute before Streamlit has registered its message listener.
+// Keep announcing readiness until the first render acknowledges the connection.
+const announceReady = () => send('streamlit:componentReady',{apiVersion:1});
+const readyTimer = setInterval(announceReady, 100);
+announceReady();
+window.addEventListener('pagehide', () => clearInterval(readyTimer));
+</script></body></html>
