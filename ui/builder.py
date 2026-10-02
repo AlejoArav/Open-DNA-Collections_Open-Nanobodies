@@ -43,7 +43,7 @@ def show_builder_page(parts, revision=""):
     raw, part_key, selected_bbf = b"", None, None
     if mode == "Database part":
         part_key = st.selectbox("Reclone part", [None, *sorted(parts.parts)],
-            format_func=lambda key: "Choose a part" if key is None else f"{key} · {parts.parts[key]['name']}",
+            format_func=lambda key: "Choose a part" if key is None else f"{key} · {parts.parts[key]['display_name']}",
             key="builder_part")
         if part_key and len(parts.parts[part_key]["bbf_ids"]) > 1:
             st.warning("Multiple sequence identities exist. Choose an exact BBF ID.")

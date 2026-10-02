@@ -32,6 +32,56 @@ def test_empty_reclone_returns_no_inventory(tmp_path):
     assert parts.search_parts("FreeGenes").empty
 
 
+def test_polymerases_keep_collection_names_and_search_all_source_descriptions(tmp_path):
+    local = make_reclone(tmp_path, rows=[
+        {"ODC ID": "ODC_0016", "BBF ID": "BBF10K_003257", "Name": "Taq DNA Polymerase", "Collection": "Enzymes"},
+        {"ODC ID": "ODC_0019", "BBF ID": "BBF10K_003261", "Name": "Bst DNA Polymerase, Full Length", "Collection": "Enzymes"},
+        {"ODC ID": "ODC_0020", "BBF ID": "BBF10K_003262", "Name": "Bst DNA Polymerase, Large Fragment", "Collection": "Enzymes"}])
+    upstream = make_freegenes(tmp_path,
+        records=[metadata_record("BBF10K_003257", "THEAQpolA", description="Thermostable enzyme")],
+        backend_records=[metadata_record("BBF10K_003257", "THEAQpolA", source="FreeGenes backend", description="Current annotation"),
+                         metadata_record("BBF10K_003261", "Bstpol"), metadata_record("BBF10K_003262", "BstpolLF"),
+                         metadata_record("BBF10K_009999", "External polymerase")])
+    parts = PartService(local, upstream)
+    result = parts.search_parts("POLYMERASE").set_index("Part Key")
+    assert result["Name"].to_dict() == {r["BBF ID"]: r["Name"] for r in local.main_df.to_dict("records")}
+    assert parts.search_parts("THEAQpolA").iloc[0]["Name"] == "Taq DNA Polymerase"
+    assert parts.search_parts("thermostable").iloc[0]["Part Key"] == "BBF10K_003257"
+    assert parts.parts["BBF10K_003257"]["metadata"]["description"] == "Current annotation"
+    assert parts.parts["BBF10K_003257"]["name"] == "THEAQpolA"
+    assert parts.search_parts("External polymerase").empty
+
+
+def test_plate_only_reclone_inventory_is_searchable_without_freegenes(tmp_path):
+    local = make_reclone(tmp_path, rows=[], locations=[
+        {"BBF ID": "BBF10K_000483", "Name": "Plate-only reporter", "Well Location": "G4"},
+        {"BBF ID": "BBF10K_000483", "Name": "Alternate reporter name", "Well Location": "H4"}])
+    parts = PartService(local, make_freegenes(tmp_path, records=[metadata_record("BBF10K_009999", "External only")]))
+    result = parts.search_parts("reporter")
+    assert result["Part Key"].tolist() == ["BBF10K_000483"]
+    assert result.iloc[0]["Locations"] == 2
+    assert parts.collections == ["Local Collection"]
+    assert parts.search_parts("Alternate reporter").iloc[0]["Part Key"] == "BBF10K_000483"
+    assert parts.search_parts("External only").empty
+    assert parts.parts["BBF10K_000483"]["source_records"][0]["provenance"]["source_path"].endswith("v1.csv")
+
+
+def test_plate_conflict_does_not_expand_or_merge_master_identity(tmp_path):
+    local = make_reclone(tmp_path, locations=[
+        {"ODC ID": "ODC_0001", "BBF ID": "BBF10K_000002", "Name": "Wrong identity", "Well Location": "A1"}])
+    parts = PartService(local, make_freegenes(tmp_path, records=[metadata_record("BBF10K_000002", "External only")]))
+    assert set(parts.parts) == {"BBF10K_000001"}
+    assert parts.parts["BBF10K_000001"]["locations"][0]["identity_conflict"]
+    assert parts.search_parts("Wrong identity").empty
+
+
+def test_matching_plate_names_are_search_aliases(tmp_path):
+    local = make_reclone(tmp_path, locations=[
+        {"ODC ID": "ODC_0001", "BBF ID": "BBF10K_000001", "Name": "Well annotation alias", "Well Location": "A1"}])
+    parts = PartService(local, make_freegenes(tmp_path))
+    assert parts.search_parts("Well annotation alias").iloc[0]["Name"] == "Local name"
+
+
 def test_backend_precedence_preserves_conflicting_original_rows(tmp_path):
     local = make_reclone(tmp_path)
     backend = metadata_record(name="Backend name", source="FreeGenes backend", description="Current")

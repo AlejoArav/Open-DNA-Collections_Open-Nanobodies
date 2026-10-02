@@ -115,6 +115,7 @@ def load_freegenes_service(revision: str) -> FreeGenesService:
 
 @st.cache_resource(max_entries=3)
 def load_part_service(reclone_revision: str, freegenes_revision: str) -> PartService:
+    """Build the v3 inventory from Reclone master-list and platemap records."""
     return PartService(load_data_service(reclone_revision), load_freegenes_service(freegenes_revision))
 
 
@@ -233,14 +234,18 @@ def resolve_subject_metadata(
     return None, {}
 
 
-def show_home_page(service: DNACollectionDataService) -> None:
+def show_home_page(service: DNACollectionDataService, parts: PartService) -> None:
     st.markdown("## Welcome to the Open DNA Collections Database")
     st.markdown("Search Reclone collections and FreeGenes, explore annotated DNA parts, and download sequences and metadata.")
-    summary = service.get_collections_summary()
+    summary = {}
+    for collection in parts.collections:
+        members = [part for part in parts.parts.values() if collection in part["collections"]]
+        summary[collection] = {"count": len(members), "with_bbf_id": sum(bool(p["bbf_ids"]) for p in members),
+                               "with_odc_id": sum(any(a.startswith("ODC_") for a in p["aliases"]) for p in members)}
     c1, c2, c3 = st.columns(3)
-    c1.metric("Reclone parts", sum(info["count"] for key, info in summary.items() if key != "GenBank Files"))
-    c2.metric("Reclone collections", len([k for k in summary if k != "GenBank Files"]))
-    c3.metric("Indexed local GenBank files", summary.get("GenBank Files", {}).get("count", 0))
+    c1.metric("Reclone parts", len(parts.parts))
+    c2.metric("Reclone collections", len(summary))
+    c3.metric("Indexed local GenBank files", len(service.genbank_index_df))
     st.markdown("## Collections overview")
     for collection, info in summary.items():
         if collection != "GenBank Files":
@@ -280,7 +285,7 @@ def show_search_page(service, freegenes, reclone_revision) -> None:
     last = st.session_state.get("submitted_search")
     if not last:
         return
-    source_revision = "reclone-inventory-v2:" + reclone_revision + parts.freegenes.revision
+    source_revision = "reclone-inventory-v3:" + reclone_revision + parts.freegenes.revision
     if "search_results" not in st.session_state or st.session_state.get("search_revision") != source_revision:
         st.session_state["search_results"] = parts.search_parts(**last)
         st.session_state["search_revision"] = source_revision
@@ -316,6 +321,7 @@ def show_search_page(service, freegenes, reclone_revision) -> None:
         st.session_state["results_page"] = 1
     page_number = c3.selectbox("Page", range(1, pages + 1), key="results_page")
     page = results.iloc[(page_number - 1) * page_size:page_number * page_size].reset_index(drop=True)
+    st.caption(f"Showing {(page_number - 1) * page_size + 1}–{min(page_number * page_size, len(results))} of {len(results)} results · Page {page_number} of {pages}. Scroll the table to see every row on this page.")
     page_identity = (source_revision, json.dumps(last, sort_keys=True), page_size, page_number, show_all)
     if st.session_state.get("displayed_page_identity") != page_identity:
         st.session_state["displayed_page_identity"] = page_identity
@@ -327,7 +333,7 @@ def show_search_page(service, freegenes, reclone_revision) -> None:
     display = page if show_all else page[["BBF ID", "ODC ID", "Name", "Collection", "Sources", "Locations", "Source Conflicts"]]
     render_results_table(display, keys, table_key)
     c1, c2 = st.columns([3, 1])
-    chosen = c1.selectbox("Part on this page", keys, format_func=lambda k: k + " — " + parts.parts[k]["name"],
+    chosen = c1.selectbox("Part on this page", keys, format_func=lambda k: k + " — " + parts.parts[k]["display_name"],
                           key=f"part_choice_{page_number}_{page_size}")
     if c2.button("View details", key="view_details"):
         open_details(chosen)
@@ -528,7 +534,7 @@ def main() -> None:
 
     page = st.session_state.current_page
     if page == "Home":
-        show_home_page(service)
+        show_home_page(service, load_part_service(reclone_revision, manifest_revision(freegenes.directory / "manifest.json")))
     elif page == "Search & Browse":
         show_search_page(service, freegenes, reclone_revision)
     elif page == "BLAST Search":

@@ -17,7 +17,8 @@
 
 ## Current UI requirements (2026-10-02 correction)
 
-- Search & Browse lists only identities present in Reclone, including those enriched by matching FreeGenes records. Exclude FreeGenes-only identities and collection filters.
+- Search & Browse lists identities from Reclone's master CSV and identified platemap records, including those enriched by matching FreeGenes records. Exclude FreeGenes-only identities and collection filters. Plate rows must not change identities established by the master CSV.
+- Use Reclone collection names as visible labels in results, details and builder choices; keep FreeGenes names as searchable aliases and source metadata. Search every source's public names/descriptions and exact matching platemap names, not just the preferred metadata value. Preserve index-version invalidation for saved results and cached services.
 - The bundled component must retry readiness until the first render acknowledgement; a one-shot ready message can be dropped before host registration. Keep the frontend regression covering this race.
 - Use the bundled whole-row clickable table in `ui/results_table/`; do not revert to checkbox-only selection. Preserve stable IDs through sorting/paging and support keyboard activation.
 - Keep Part Details free of metadata retrieval timestamps, parser/topology notices, missing-location notices, and source/provenance sections. Preserve diagnostic data and source validation internally and in exports; keep actionable unavailable/ambiguous sequence states visible.

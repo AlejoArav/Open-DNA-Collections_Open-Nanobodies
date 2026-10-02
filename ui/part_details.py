@@ -23,7 +23,7 @@ def render_details(details, location_status):
     gb = details.get("genbank")
     summary, downloads = st.columns([3, 1], gap="large")
     with summary:
-        st.subheader(details["name"])
+        st.subheader(details.get("display_name", details["name"]))
         st.text("Identifiers: " + ", ".join(details["aliases"]))
         st.text("Collections: " + "; ".join(details["collections"]))
         if gb:

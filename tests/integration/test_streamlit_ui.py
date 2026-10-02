@@ -49,6 +49,8 @@ def test_search_open_close_reopen_and_missing_sequence(app):
     assert not app.exception
     assert len(app.session_state["search_results"]) == 2
     assert app.session_state["submitted_search"]["query"] == ""
+    assert app.session_state["search_results"].iloc[0]["Name"] == "Local name"
+    assert any("Showing 1–2 of 2 results" in c.value for c in app.caption)
     button(app, "View details").click().run()
     assert not app.exception
     assert app.session_state["details_open"]
@@ -77,6 +79,18 @@ def test_search_state_survives_navigation_and_literal_filters(app):
     assert not app.exception
     assert app.session_state["submitted_search"]["query"] == "ODC-1"
     assert len(app.session_state["search_results"]) == 1
+
+
+def test_search_index_upgrade_rebuilds_saved_results(app):
+    button(app, "Search & Browse").click().run()
+    button(app, "Search").click().run()
+    app.session_state["search_results"] = app.session_state["search_results"].iloc[:0]
+    app.session_state["search_revision"] = "reclone-inventory-v2:old-index"
+    app.run()
+    assert not app.exception
+    assert len(app.session_state["search_results"]) == 2
+    assert app.session_state["search_results"].iloc[0]["Name"] == "Local name"
+    assert app.session_state["search_revision"].startswith("reclone-inventory-v3:")
 
 
 def test_stale_page_and_blast_page(app):

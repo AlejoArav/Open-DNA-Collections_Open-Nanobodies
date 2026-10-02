@@ -65,6 +65,22 @@ class PartService:
             rows.append((ids[0], {"source": "Reclone", "fields": row,
                         "provenance": {"source": "Reclone", "revision": self.reclone.manifest.get("source_commit", "local-checkout"),
                                        "source_path": "odc_plasmids.csv"}}))
+        location_rows = [clean(r) for r in self.reclone.platemaps_df.to_dict("records")]
+        main_aliases = set(parent)
+        # Reclone plate records are inventory too, even when absent from the master CSV.
+        # Do not use a plate row to change an identity established by the master CSV.
+        for row in location_rows:
+            ids = _unique([identifier(row.get("BBF ID")), identifier(row.get("ODC ID"))])
+            if not ids or main_aliases.intersection(ids):
+                continue
+            for value in ids:
+                find(value)
+                union(ids[0], value)
+            rows.append((ids[0], {"source": "Reclone", "fields": {
+                "BBF ID": row.get("BBF ID"), "ODC ID": row.get("ODC ID"),
+                "Name": row.get("Name"), "Collection": row.get("Toolkit")},
+                "provenance": {"source": "Reclone", "revision": self.reclone.manifest.get("source_commit", "local-checkout"),
+                               "source_path": row.get("Source_Path")}}))
         for record in [*self.freegenes.backend_records, *self.freegenes.records]:
             find(record["part_id"])
             rows.append((record["part_id"], {"source": record["provenance"]["source"],
@@ -90,7 +106,6 @@ class PartService:
         self.parts = {key: part for key, part in self.parts.items()
                       if any(row["source"] == "Reclone" for row in part["source_records"])}
         self.aliases = {alias: key for alias, key in self.aliases.items() if key in self.parts}
-        location_rows = [clean(r) for r in self.reclone.platemaps_df.to_dict("records")]
         locations_by_alias = {}
         for i, row in enumerate(location_rows):
             for alias in _unique([identifier(row.get("ODC ID")), identifier(row.get("BBF ID"))]):
@@ -117,6 +132,8 @@ class PartService:
             all_names = _unique([*(r["fields"].get("gene_name_short") for r in [*backend, *github]), *local_names])
             preferred_name = metadata.get("gene_name_short")
             part["name"] = preferred_name if isinstance(preferred_name, str) else " / ".join(all_names) or part["part_key"]
+            # Keep familiar collection names visible; upstream names remain metadata/search aliases.
+            part["display_name"] = " / ".join(local_names) or part["name"]
             part["collections"] = _unique(r["fields"].get("Collection") for r in local)
             part["metadata"], part["field_sources"], part["conflicts"] = metadata, field_sources, conflicts
             if len(part["bbf_ids"]) > 1:
@@ -129,12 +146,15 @@ class PartService:
                 part["warnings"].append("Some source metadata differs. See source records for each original value.")
             # Add complete source rows; no first-match join or cross-provider field splicing.
             location_indexes = sorted({i for alias in part["aliases"] for i in locations_by_alias.get(alias, [])})
+            location_names = []
             for i in location_indexes:
                 row = location_rows[i]
                 ids = _unique([identifier(row.get("ODC ID")), identifier(row.get("BBF ID"))])
                 if not set(ids).intersection(part["aliases"]):
                     continue
                 exact = all(a in part["aliases"] for a in ids)
+                if exact and row.get("Name"):
+                    location_names.append(row["Name"])
                 part["locations"].append({"provider": "Reclone", "part_ids": ids,
                     "plate_name": row.get("Platemap_Key"), "plate_number": None,
                     "well": row.get("Well_Location"), "distribution": row.get("Toolkit"),
@@ -151,9 +171,9 @@ class PartService:
             part["sources"] = _unique(r["source"] for r in records)
             if not part["sources"]:
                 part["sources"] = ["FreeGenes GitHub"]
-            part["search_text"] = " ".join([*part["aliases"], *all_names, *part["collections"],
-                str(metadata.get("description", "")), str(metadata.get("gene_name_long", "")),
-                *(str(r["fields"].get("Description", "")) for r in local)]).casefold()
+            search_fields = ("Name", "Description", "description", "gene_name_short", "gene_name_long", "product")
+            part["search_text"] = " ".join([*part["aliases"], *all_names, *part["collections"], *location_names,
+                *(str(r["fields"].get(field) or "") for r in records for field in search_fields)]).casefold()
 
     @property
     def collections(self):
@@ -180,7 +200,7 @@ class PartService:
                 continue
             rows.append({"Part Key": p["part_key"], "BBF ID": "; ".join(p["bbf_ids"]),
                          "ODC ID": "; ".join(a for a in p["aliases"] if a.startswith("ODC_")),
-                         "Name": p["name"], "Collection": "; ".join(p["collections"]),
+                         "Name": p["display_name"], "Collection": "; ".join(p["collections"]),
                          "Sources": "; ".join(p["sources"]), "Locations": len(locations),
                          "Well_Location": "; ".join(_unique(f"{loc['provider']}: {loc.get('plate_name') or 'unknown plate'} / {loc.get('well') or 'unknown well'}" for loc in locations)),
                          "Bacterial_Resistance": "; ".join(_unique(loc.get("resistance") for loc in locations)),
