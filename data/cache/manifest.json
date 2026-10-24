@@ -2,8 +2,8 @@
   "schema_version": "1.0.0",
   "source_repo": "Reclone-org/Open-DNA-Collections",
   "source_branch": "main",
-  "source_commit": "64a94da45dc7be08acaafce689c7d6b367e407cc",
-  "generated_at": "2026-10-23T09:22:23.153907+00:00",
+  "source_commit": "eb46aa2aa45937f3411213956b0c1d5e54f31f3a",
+  "generated_at": "2026-10-24T08:53:56.967011+00:00",
   "files": [
     {
       "path": "data/cache/snapshots/ba8497169a07625864b2276fbe8f5f61c4520b1e5df0021a348ee4e8c935dab1/main.parquet",
@@ -38,7 +38,7 @@
   ],
   "sequence_source": {
     "source": "local-checkout",
-    "commit": "55b2565a00a0acb9497f94f75089e8bec45b09e8"
+    "commit": "456aa530c7890ba859961126b4c2fab9fa9db987"
   },
   "counts": {
     "main_rows": 337,
